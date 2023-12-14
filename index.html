@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>Socket.IO chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kalnia&display=swap" rel="stylesheet"> <!-- custom font, see https://fonts.google.com -->
+    <style>
+      body { margin: 0; padding-bottom: 3rem; font-family: Kalnia, Helvetica, Arial, sans-serif; }
+
+      #chatform, #nameform { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+      #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
+      #input:focus { outline: none; }
+      #chatform > button, #nameform > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+      #nameform > button { background: green; }
+
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages > li { padding: 0.5rem 1rem; }
+      #messages > li.left { color: red; }
+      #messages > li.entered { color: green; }
+      #messages > li.own { font-weight: bold; }
+      #messages > li:nth-child(odd) { background: #efefef; }
+
+      .hidden { display: none !important; }
+    </style>
+  </head>
+
+  <body>
+    <ul id="messages"></ul>
+
+    <form id="nameform" action="">
+        <input id="nameinput" autocomplete="off" placeholder="Choose a nickname ..."/>&nbsp;
+        <label>Choose a colour: <input id="namecolor" type="color"/></label><button>Enter the chat</button>
+      </form>
+
+    <form id="chatform" action="" class="hidden">
+      <input id="input" autocomplete="off" /><button>Send</button>
+    </form>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        const form = document.getElementById('chatform');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
+        const nameform = document.getElementById('nameform');
+        const nameinput = document.getElementById('nameinput');
+        const namecolor = document.getElementById('namecolor');
+
+        // when the name form is submitted, send an event to the server containing the name of the new chat user
+        nameform.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (nameinput.value) {
+                socket.emit('new user', {name: nameinput.value, color: namecolor.value}); // send the chosen nickname and colour for this new user to the server
+                nameform.className = 'hidden'; // then hide the name form with CSS but leave it in the DOM
+                form.className = ''; // unhide the chat form so they can begin chatting
+            }
+        });  
+
+        // when the chat form is submitted, send an event to the server containing the chat message
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (input.value) {
+                socket.emit('chat message', {name: nameinput.value, color: namecolor.value, msg: input.value}); // include both the name of the chat user and their new message
+
+                // log this 'own' chat message directly to the list, instead of letting the server event trigger it
+                const item = document.createElement('li');
+                item.textContent = "you: " + input.value;
+                item.className = 'own'; // use a custom class to differentiate 'our' chat msgs from everyone else's
+                item.style = 'color: ' + namecolor.value; // and style with our chosen colour
+                messages.appendChild(item);
+
+                input.value = ''; // reset the chat msg form field back to empty
+            }
+        });    
+        
+        // when a chat message event is received, create a new list item and append the chat msg to the DOM
+        socket.on('chat message', (msg) => {
+            const item = document.createElement('li');
+            item.textContent = msg.message; // 'msg' is now an object containing the user name, user colour and chat message 
+            item.style = 'color: ' + msg.color; // set the colour of the message to the user's chosen colour (sent to the server with their msg and name)
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });   
+
+        // when a new user connects to the chat, create a new list item with a custom class and append to the DOM
+        socket.on('new user', (msg) => {
+            const item = document.createElement('li');
+            item.textContent = msg;
+            item.className = 'entered'; // style the entering/leaving messages differently
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });         
+
+        // when a user leaves the chat, create a new list item with a custom class and append to the DOM
+        socket.on('user left', (msg) => {
+            const item = document.createElement('li');
+            item.textContent = msg;
+            item.className = 'left'; // style the entering/leaving messages differently
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });         
+
+    </script>    
+  </body>
+</html>
